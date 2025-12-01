@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZenFocus | Deep Work Timer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.js"></script>
+    <style>
+        body {
+            font-family: 'Quicksand', sans-serif;
+            transition: background-color 0.5s ease, color 0.5s ease;
+        }
+        
+        /* Custom Range Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: currentColor;
+            cursor: pointer;
+            margin-top: -6px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+        
+        .timer-circle circle {
+            transition: stroke-dashoffset 1s linear;
+        }
+
+        /* Animations */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-5px); }
+            100% { transform: translateY(0px); }
+        }
+        .animate-float {
+            animation: float 6s ease-in-out infinite;
+        }
+
+        /* Glassmorphism utilities */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        /* Custom input style for time customization - keeps the large font */
+        .time-input-style {
+            background: none;
+            border: none;
+            color: inherit;
+            text-align: center;
+            outline: none;
+            width: 100%;
+            font-weight: bold;
+            line-height: 1;
+            /* Match time-display style */
+            font-size: 3.75rem; /* text-6xl */
+            letter-spacing: -0.05em; /* tracking-tighter */
+            max-width: 200px;
+        }
+        /* Ensure input uses full width inside the wrapper */
+        #time-input-wrapper {
+            max-width: 200px;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start pt-10 p-4 transition-colors duration-700 bg-slate-900 text-slate-100" id="app-body">
+
+    <!-- Audio Permission Overlay -->
+    <div id="start-overlay" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center transition-opacity duration-500">
+        <div class="text-center p-8 max-w-md bg-slate-800 rounded-xl shadow-2xl">
+            <i data-lucide="headphones" class="w-16 h-16 mx-auto mb-6 text-emerald-400 animate-float"></i>
+            <h1 class="text-3xl font-bold mb-4">ZenFocus Studio</h1>
+            <p class="text-slate-400 mb-8">A procedural audio environment for deep learning. Please click to enable sound and start the session.</p>
+            <button id="start-btn" class="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-full font-semibold transition-all transform hover:scale-105 shadow-lg shadow-emerald-500/20">
+                Enter Focus Mode
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN HEADER -->
+    <header class="w-full max-w-lg mb-8 flex justify-between items-center px-2">
+        <div class="flex items-center gap-2">
+            <i data-lucide="sun" class="w-6 h-6 text-emerald-400"></i>
+            <h1 class="text-2xl font-bold tracking-tight">ZenFocus Studio</h1>
+        </div>
+        <button id="settings-btn" class="p-2 hover:bg-white/10 rounded-full transition-colors">
+            <i data-lucide="settings" class="w-6 h-6"></i>
+        </button>
+    </header>
+
+
+    <!-- Main Container -->
+    <main class="w-full max-w-lg relative z-10">
+        
+        <!-- Header / Stats -->
+        <div class="flex justify-start items-center mb-8 px-2 gap-4">
+            <div class="flex items-center gap-2 glass-panel rounded-full px-4 py-2">
+                <i data-lucide="flame" class="w-5 h-5 text-orange-400"></i>
+                <span id="streak-display" class="font-medium text-lg">0</span>
+                <span class="text-xs opacity-60 uppercase tracking-wider ml-1">Sessions</span>
+            </div>
+        </div>
+
+        <!-- Timer Card -->
+        <div class="glass-panel rounded-3xl p-8 mb-6 shadow-2xl relative overflow-hidden">
+            <!-- Mode Tabs -->
+            <div class="flex justify-center gap-2 mb-8 relative z-20">
+                <button data-mode="focus" class="mode-btn px-6 py-2 rounded-full text-sm font-bold transition-all bg-white/20 text-white ring-2 ring-transparent ring-offset-2 ring-offset-transparent">Focus</button>
+                <button data-mode="short" class="mode-btn px-6 py-2 rounded-full text-sm font-bold transition-all opacity-60 hover:opacity-100 hover:bg-white/10">Short Break</button>
+                <button data-mode="long" class="mode-btn px-6 py-2 rounded-full text-sm font-bold transition-all opacity-60 hover:opacity-100 hover:bg-white/10">Long Break</button>
+            </div>
+
+            <!-- Main Timer -->
+            <div id="time-container" class="relative w-64 h-64 mx-auto mb-8 flex items-center justify-center">
+                <!-- SVG Circle Progress -->
+                <svg class="absolute top-0 left-0 w-full h-full transform -rotate-90 pointer-events-none">
+                    <circle cx="128" cy="128" r="120" stroke="currentColor" stroke-width="8" fill="transparent" class="text-white/10" />
+                    <circle id="progress-ring" cx="128" cy="128" r="120" stroke="currentColor" stroke-width="8" fill="transparent" class="text-current transition-all duration-1000" stroke-dasharray="754" stroke-dashoffset="0" stroke-linecap="round" />
+                </svg>
+                
+                <div class="text-center z-10 cursor-pointer" id="time-input-wrapper">
+                    <!-- time-display element will be dynamically replaced on click -->
+                    <div id="time-display" class="text-6xl font-bold tracking-tighter mb-1">25:00</div>
+                    <div id="status-text" class="text-sm uppercase tracking-widest opacity-70">Ready to Focus</div>
+                </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="flex justify-center items-center gap-6">
+                <!-- Play/Pause Button -->
+                <button id="toggle-btn" class="p-6 rounded-full bg-white text-slate-900 hover:scale-105 transition-all shadow-lg hover:shadow-xl flex items-center justify-center">
+                    <i data-lucide="play" class="w-8 h-8" id="play-icon"></i>
+                </button>
+                <!-- Skip Button -->
+                <button id="skip-btn" class="p-4 rounded-full bg-white/5 hover:bg-white/10 transition-all text-white/80 flex items-center justify-center">
+                    <i data-lucide="skip-forward" class="w-6 h-6"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Task & Ambient Controls -->
+        <div class="glass-panel rounded-2xl p-6">
+            <!-- Task Input -->
+            <div class="mb-6">
+                <label class="text-xs uppercase tracking-wider opacity-60 mb-2 block">Current Focus</label>
+                <div class="relative group">
+                    <input type="text" id="task-input" placeholder="What are you learning?" 
+                        class="w-full bg-transparent border-b-2 border-white/20 py-2 pl-8 pr-4 focus:outline-none focus:border-white transition-colors text-lg placeholder-white/30">
+                    <i data-lucide="pen-tool" class="w-4 h-4 absolute left-0 top-3 opacity-50 group-focus-within:opacity-100 transition-opacity"></i>
+                </div>
+            </div>
+
+            <!-- Audio Controls -->
+            <div class="space-y-4">
+                <label class="text-xs uppercase tracking-wider opacity-60 mb-2 block">Ambient Sound Type</label>
+                <div class="flex gap-2 flex-wrap mb-4">
+                    <button data-noise="none" class="noise-type-btn px-4 py-2 rounded-full text-sm transition-all bg-emerald-500 text-white">None</button>
+                    <button data-noise="brown" class="noise-type-btn px-4 py-2 rounded-full text-sm transition-all opacity-60 hover:opacity-100 hover:bg-white/10">Brown Noise</button>
+                    <button data-noise="white" class="noise-type-btn px-4 py-2 rounded-full text-sm transition-all opacity-60 hover:opacity-100 hover:bg-white/10">White Noise</button>
+                    <button data-noise="binaural" class="noise-type-btn px-4 py-2 rounded-full text-sm transition-all opacity-60 hover:opacity-100 hover:bg-white/10">Binaural Beats</button>
+                </div>
+
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <i data-lucide="volume-2" class="w-5 h-5 opacity-60"></i>
+                        <div>
+                            <div class="text-sm font-medium" id="noise-title">Ambient Volume</div>
+                            <div class="text-xs opacity-60" id="noise-description">Current: None</div>
+                        </div>
+                    </div>
+                    <!-- Slider output is linear (0 to 1), mapped exponentially for perceived volume -->
+                    <input type="range" id="noise-volume" min="0" max="1" step="0.01" value="0.5" class="w-24 accent-white">
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 text-white w-full max-w-md rounded-3xl p-8 shadow-2xl border border-white/10 transform transition-all scale-95 opacity-0" id="settings-content">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">Studio Settings</h2>
+                <button id="close-settings" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+
+            <!-- Themes -->
+            <div class="mb-8">
+                <label class="text-xs uppercase tracking-wider text-slate-500 mb-3 block">Theme</label>
+                <div class="grid grid-cols-3 gap-3">
+                    <button class="theme-btn p-3 rounded-xl border border-slate-700 hover:border-emerald-500 transition-all flex flex-col items-center gap-2" data-theme="midnight">
+                        <div class="w-6 h-6 rounded-full bg-slate-800 border border-slate-600"></div>
+                        <span class="text-xs">Midnight</span>
+                    </button>
+                    <button class="theme-btn p-3 rounded-xl border border-slate-700 hover:border-rose-400 transition-all flex flex-col items-center gap-2" data-theme="latte">
+                        <div class="w-6 h-6 rounded-full bg-[#f5e6d3] border border-[#d1b996]"></div>
+                        <span class="text-xs">Latte</span>
+                    </button>
+                    <button class="theme-btn p-3 rounded-xl border border-slate-700 hover:border-teal-400 transition-all flex flex-col items-center gap-2" data-theme="forest">
+                        <div class="w-6 h-6 rounded-full bg-[#1b4d3e] border border-[#2d6a56]"></div>
+                        <span class="text-xs">Forest</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Timers -->
+            <div class="mb-6">
+                <label class="text-xs uppercase tracking-wider text-slate-500 mb-3 block">Timer Durations (Minutes)</label>
+                <div class="space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm">Focus</span>
+                        <input type="number" id="setting-focus" value="25" class="w-16 bg-slate-800 rounded-lg p-2 text-center text-sm border border-slate-700 focus:border-emerald-500 outline-none">
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm">Short Break</span>
+                        <input type="number" id="setting-short" value="5" class="w-16 bg-slate-800 rounded-lg p-2 text-center text-sm border border-slate-700 focus:border-emerald-500 outline-none">
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm">Long Break</span>
+                        <input type="number" id="setting-long" value="15" class="w-16 bg-slate-800 rounded-lg p-2 text-center text-sm border border-slate-700 focus:border-emerald-500 outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <button id="save-settings" class="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-xl font-semibold transition-colors">Save Changes</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Audio Engine (Procedural) ---
+        class AudioEngine {
+            constructor() {
+                this.ctx = null;
+                this.noiseNodes = []; 
+                this.noiseGain = null;
+                this.isPlayingNoise = false;
+                this.masterVolume = 0.5;
+                this.currentNoiseType = 'none';
+                this.BUFFER_DURATION = 120; // 2 minutes
+                this.TINY_GAIN = 0.0001; // Safe non-zero gain start
+                
+                // NEW: Scheduled start time constants
+                this.SOURCE_START_DELAY = 0.05; // 50ms delay for safety
+                this.FADE_DURATION = 2.0; // 2 seconds ramp time
+            }
+
+            async init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    // Attempt to resume the context only if it's suspended
+                    return this.ctx.resume();
+                }
+                return Promise.resolve();
+            }
+
+            // --- Noise Generators ---
+
+            createBrownNoise() {
+                const bufferSize = this.ctx.sampleRate * this.BUFFER_DURATION; 
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                
+                let lastOut = 0;
+                for (let i = 0; i < bufferSize; i++) {
+                    const white = Math.random() * 2 - 1;
+                    // Integrate white noise (low-pass filter)
+                    data[i] = (lastOut + (0.02 * white)) / 1.02;
+                    lastOut = data[i];
+                    data[i] *= 3.5; // Gain compensation
+                }
+                return buffer;
+            }
+
+            createWhiteNoise() {
+                const bufferSize = this.ctx.sampleRate * this.BUFFER_DURATION;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const output = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                    output[i] *= 2.0; // Gain compensation
+                }
+                return buffer;
+            }
+
+            // --- Binaural Beat Generator ---
+            startBinauralBeats(targetVolume, freqA = 440, freqB = 444) {
+                this.stopNoise(true); 
+                this.isPlayingNoise = true;
+                
+                const t = this.ctx.currentTime;
+                const sourceStartTime = t + this.SOURCE_START_DELAY; // Schedule start 50ms in future
+                
+                this.noiseGain = this.ctx.createGain();
+                
+                // GSS Step 1: Set initial gain to TINY_GAIN at current time
+                this.noiseGain.gain.setValueAtTime(this.TINY_GAIN, t); 
+                this.noiseGain.connect(this.ctx.destination);
+
+                // Create two oscillators
+                const oscL = this.ctx.createOscillator();
+                oscL.type = 'sine';
+                oscL.frequency.setValueAtTime(freqA, t);
+
+                const oscR = this.ctx.createOscillator();
+                oscR.type = 'sine';
+                oscR.frequency.setValueAtTime(freqB, t);
+
+                const merger = this.ctx.createChannelMerger(2);
+
+                // Pan left and right using ChannelMerger
+                const gainL = this.ctx.createGain();
+                gainL.gain.value = 0.5; 
+                oscL.connect(gainL).connect(merger, 0, 0); 
+
+                const gainR = this.ctx.createGain();
+                gainR.gain.value = 0.5; 
+                oscR.connect(gainR).connect(merger, 0, 1); 
+
+                merger.connect(this.noiseGain);
+                
+                // GSS Step 2: Hold gain at TINY_GAIN until the source starts
+                this.noiseGain.gain.linearRampToValueAtTime(this.TINY_GAIN, sourceStartTime);
+
+                // GSS Step 3: Start the fade-in precisely when the source starts
+                this.noiseGain.gain.linearRampToValueAtTime(targetVolume, sourceStartTime + this.FADE_DURATION);
+
+                // Start oscillators at the scheduled time
+                oscL.start(sourceStartTime);
+                oscR.start(sourceStartTime);
+                
+                this.noiseNodes = [oscL, oscR];
+            }
+
+            // --- Unified Noise Control ---
+
+            startNoise(type) {
+                // If switching from a different type, stop first
+                if (this.currentNoiseType !== 'none' && this.currentNoiseType !== type) {
+                    this.stopNoise(true);
+                }
+
+                if (type === this.currentNoiseType && this.isPlayingNoise) {
+                    // Already playing this type, toggle off
+                    this.stopNoise(false);
+                    this.currentNoiseType = 'none';
+                    return;
+                }
+                
+                if (type === 'none') {
+                    this.stopNoise(false);
+                    this.currentNoiseType = 'none';
+                    return;
+                }
+                
+                // Set new type before initialization and start
+                this.currentNoiseType = type;
+
+                // Ensure context is running, then proceed with internal start logic
+                this.init().then(() => {
+                    this._startNoiseInternal(type);
+                });
+            }
+
+            _startNoiseInternal(type) {
+                if (this.isPlayingNoise) {
+                    this.stopNoise(true);
+                }
+                
+                this.isPlayingNoise = true;
+                this.noiseGain = this.ctx.createGain();
+
+                const effectiveVol = Math.pow(this.masterVolume, 3);
+                
+                const t = this.ctx.currentTime;
+                const sourceStartTime = t + this.SOURCE_START_DELAY; 
+
+                if (type === 'binaural') {
+                    this.startBinauralBeats(effectiveVol); 
+                    return;
+                }
+
+                let buffer;
+                let filterFreq = 20000;
+
+                if (type === 'brown') {
+                    buffer = this.createBrownNoise();
+                    filterFreq = 400; 
+                } else if (type === 'white') {
+                    buffer = this.createWhiteNoise();
+                    filterFreq = 20000;
+                }
+
+                // 1. Create Buffer Source
+                const noiseNode = this.ctx.createBufferSource();
+                noiseNode.buffer = buffer;
+                noiseNode.loop = true; 
+                
+                // GSS Step 1: Set initial gain to TINY_GAIN at current time
+                this.noiseGain.gain.setValueAtTime(this.TINY_GAIN, t); 
+                
+                // 2. Add Filter and Connect
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.value = filterFreq;
+
+                noiseNode.connect(filter);
+                filter.connect(this.noiseGain);
+                this.noiseGain.connect(this.ctx.destination);
+                
+                // GSS Step 2: Hold gain at TINY_GAIN until the source starts
+                this.noiseGain.gain.linearRampToValueAtTime(this.TINY_GAIN, sourceStartTime);
+
+                // GSS Step 3: Start the fade-in precisely when the source starts
+                this.noiseGain.gain.linearRampToValueAtTime(effectiveVol, sourceStartTime + this.FADE_DURATION);
+                
+                // 3. Start Playback at the scheduled time
+                noiseNode.start(sourceStartTime); 
+                this.noiseNodes = [noiseNode];
+            }
+
+            // `isInternalSwitch` prevents the button state from being reset on an internal stop (e.g. before starting a different noise)
+            stopNoise(isInternalSwitch = false) {
+                if (!this.isPlayingNoise || !this.noiseGain) return;
+
+                const cleanup = () => {
+                    this.noiseNodes.forEach(node => {
+                        try { 
+                            // Stop node, then disconnect
+                            if (typeof node.stop === 'function') {
+                                node.stop(); 
+                            }
+                        } catch(e) { /* console.warn("Could not stop audio node:", e); */ }
+                        try { node.disconnect(); } catch(e) {}
+                    });
+                    if (this.noiseGain) {
+                        try { this.noiseGain.disconnect(); } catch(e) {}
+                    }
+                    this.noiseNodes = [];
+                    this.noiseGain = null;
+                    this.isPlayingNoise = false;
+                    // Reset currentNoiseType only if it was a user-requested stop (not an internal switch)
+                    if (!isInternalSwitch) {
+                        this.currentNoiseType = 'none';
+                    }
+                };
+
+                // If not an internal switch, fade out and clean up
+                if (!isInternalSwitch) {
+                    this.fadeOut(this.noiseGain, cleanup);
+                } else {
+                    // For internal switch, stop immediately after setting gain to prevent sound bleeding
+                    this.noiseGain.gain.cancelScheduledValues(this.ctx.currentTime);
+                    this.noiseGain.gain.setValueAtTime(this.TINY_GAIN, this.ctx.currentTime);
+                    cleanup();
+                }
+            }
+
+            setNoiseVolume(linearSliderVal) {
+                this.masterVolume = linearSliderVal;
+                
+                // Use exponential mapping for perceived volume
+                let effectiveVolume = Math.pow(linearSliderVal, 3);
+                
+                if (this.noiseGain) {
+                    const finalGain = Math.max(this.TINY_GAIN, effectiveVolume);
+
+                    // Smooth change using exponential ramp over a short time
+                    this.noiseGain.gain.exponentialRampToValueAtTime(finalGain, this.ctx.currentTime + 0.1);
+                }
+            }
+            
+            // --- Smoother, lower-pitched Chime ---
+            playChime() {
+                if (!this.ctx) return;
+
+                // Ensure context is running before scheduling audio
+                this.ctx.resume().then(() => {
+                    const t = this.ctx.currentTime;
+                    const duration = 4; 
+                    const freq = 392; 
+                    const sourceStartTime = t + 0.01; // Small delay for the chime too
+
+                    // Fundamental Tone
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, t); 
+                    
+                    // GSS for Chime: Set tiny gain now
+                    gain.gain.setValueAtTime(this.TINY_GAIN, t); 
+                    
+                    // Hold tiny gain until source start
+                    gain.gain.linearRampToValueAtTime(this.TINY_GAIN, sourceStartTime);
+                    
+                    // Attack (Fade in) starting at source start
+                    gain.gain.linearRampToValueAtTime(0.2, sourceStartTime + 0.1); 
+                    
+                    // Decay (starting from 0.2)
+                    gain.gain.exponentialRampToValueAtTime(this.TINY_GAIN, t + duration);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    
+                    // Second Harmonic
+                    const osc2 = this.ctx.createOscillator();
+                    const gain2 = this.ctx.createGain();
+                    osc2.type = 'sine';
+                    osc2.frequency.value = freq * 2; 
+                    
+                    // GSS for Harmonic: Set tiny gain now
+                    gain2.gain.setValueAtTime(this.TINY_GAIN, t); 
+                    
+                    // Hold tiny gain until source start
+                    gain2.gain.linearRampToValueAtTime(this.TINY_GAIN, sourceStartTime);
+
+                    // Attack
+                    gain2.gain.linearRampToValueAtTime(0.05, sourceStartTime + 0.1);
+                    
+                    // Decay
+                    gain2.gain.exponentialRampToValueAtTime(this.TINY_GAIN, t + duration - 1); 
+
+                    osc2.connect(gain2);
+                    gain2.connect(this.ctx.destination);
+
+                    // Start/Stop
+                    osc.start(sourceStartTime); // Delayed start
+                    osc.stop(t + duration + 0.1);
+                    osc2.start(sourceStartTime); // Delayed start
+                    osc2.stop(t + duration);
+
+                    // Clean up nodes
+                    osc.onended = () => {
+                        try { osc.disconnect(); gain.disconnect(); } catch (e) {}
+                        try { osc2.disconnect(); gain2.disconnect(); } catch (e) {}
+                    };
+                });
+            }
+            
+            // Utility for smooth decay
+            fadeOut(gainNode, callback) {
+                const startTime = this.ctx.currentTime;
+                // Cancel any pending changes
+                gainNode.gain.cancelScheduledValues(startTime);
+                // Set the current value as the starting point for the ramp
+                gainNode.gain.setValueAtTime(gainNode.gain.value, startTime);
+                // Ramp to near-zero over 1 second
+                gainNode.gain.exponentialRampToValueAtTime(this.TINY_GAIN, startTime + 1.0);
+                // Schedule the stop/cleanup after the ramp finishes (100ms grace period)
+                setTimeout(callback, 1100);
+            }
+        }
+
+        // --- App Logic ---
+        const audio = new AudioEngine();
+        
+        // State
+        const state = {
+            mode: 'focus', 
+            timeLeft: 25 * 60,
+            isRunning: false,
+            streak: 0,
+            currentNoiseType: 'none', 
+            settings: {
+                focus: 25,
+                short: 5,
+                long: 15,
+                theme: 'midnight'
+            }
+        };
+
+        let timerInterval = null;
+        const FULL_DASH_ARRAY = 754; 
+        let isCustomInputActive = false;
+        let lastStatusText = "Ready to Focus";
+
+        // DOM Elements
+        const els = {
+            timeDisplay: document.getElementById('time-display'),
+            statusText: document.getElementById('status-text'),
+            timeInputWrapper: document.getElementById('time-input-wrapper'),
+            toggleBtn: document.getElementById('toggle-btn'), // Renamed from startBtn for clarity
+            skipBtn: document.getElementById('skip-btn'),
+            modeBtns: document.querySelectorAll('.mode-btn'),
+            progressRing: document.getElementById('progress-ring'),
+            streakDisplay: document.getElementById('streak-display'),
+            appBody: document.getElementById('app-body'),
+            overlay: document.getElementById('start-overlay'),
+            startOverlayBtn: document.getElementById('start-btn'),
+            noiseTypeBtns: document.querySelectorAll('.noise-type-btn'), 
+            noiseVolume: document.getElementById('noise-volume'),
+            noiseTitle: document.getElementById('noise-title'),
+            noiseDescription: document.getElementById('noise-description'),
+            settingsBtn: document.getElementById('settings-btn'),
+            settingsModal: document.getElementById('settings-modal'),
+            closeSettings: document.getElementById('close-settings'),
+            saveSettings: document.getElementById('save-settings'),
+            settingsInputs: {
+                focus: document.getElementById('setting-focus'),
+                short: document.getElementById('setting-short'),
+                long: document.getElementById('setting-long')
+            },
+            themeBtns: document.querySelectorAll('.theme-btn')
+        };
+
+        const noiseDescriptions = {
+            'none': { title: 'Ambient Volume', desc: 'Sound is currently off.' },
+            'brown': { title: 'Brown Noise Volume', desc: 'Low, rumbly tone for deep focus.' },
+            'white': { title: 'White Noise Volume', desc: 'Full spectrum sound for masking distractions.' },
+            'binaural': { title: 'Binaural Beats Volume', desc: '4Hz Theta waves for focus/meditation.' }
+        };
+
+        // Themes
+        const themes = {
+            midnight: { bg: 'bg-slate-900', text: 'text-slate-100', accent: 'text-emerald-400', ring: 'ring-emerald-500' },
+            latte: { bg: 'bg-[#f5e6d3]', text: 'text-[#4a3b2a]', accent: 'text-[#d4a373]', ring: 'ring-[#b08968]' },
+            forest: { bg: 'bg-[#1a2f23]', text: 'text-[#e2e8f0]', accent: 'text-[#4ade80]', ring: 'ring-[#22c55e]' }
+        };
+
+        // --- Core Functions ---
+
+        function init() {
+            // Check if lucide is available before calling createIcons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+            loadSettings();
+            applyTheme(state.settings.theme);
+            switchMode(state.mode); // Initialize time
+            updateTimerDisplay();
+            updateNoiseControls(state.currentNoiseType, true); // Use silent init
+            updatePlayIcon();
+        }
+
+        function loadSettings() {
+            const saved = localStorage.getItem('zenfocus_settings');
+            const savedStreak = localStorage.getItem('zenfocus_streak');
+            const savedNoise = localStorage.getItem('zenfocus_noise_type');
+            
+            if (saved) state.settings = { ...state.settings, ...JSON.parse(saved) };
+            if (savedStreak) state.streak = parseInt(savedStreak);
+            if (savedNoise) state.currentNoiseType = savedNoise;
+
+            // Ensure current time respects loaded settings
+            state.timeLeft = state.settings[state.mode] * 60;
+
+            els.streakDisplay.textContent = state.streak;
+            audio.currentNoiseType = state.currentNoiseType;
+        }
+
+        function saveSettings() {
+            localStorage.setItem('zenfocus_settings', JSON.stringify(state.settings));
+            localStorage.setItem('zenfocus_streak', state.streak);
+            localStorage.setItem('zenfocus_noise_type', state.currentNoiseType);
+        }
+
+        function applyTheme(themeName) {
+            const t = themes[themeName];
+            // Update classes
+            els.appBody.className = `min-h-screen flex flex-col items-center justify-start pt-10 p-4 transition-colors duration-700 ${t.bg} ${t.text}`;
+            els.progressRing.setAttribute('class', `text-current transition-all duration-1000 ${t.ring.replace('ring-', 'text-')} stroke-dasharray="754" stroke-dashoffset="0" stroke-linecap="round"`);
+            
+            updateModeButtons();
+            
+            // Re-apply focus ring to current theme button
+            els.themeBtns.forEach(b => {
+                // Remove all previous ring classes
+                b.classList.forEach(cls => {
+                    if (cls.startsWith('ring-')) {
+                         b.classList.remove(cls);
+                    }
+                });
+                
+                if (b.dataset.theme === themeName) {
+                    // Check if lucide is available before calling createIcons
+                    if (typeof lucide !== 'undefined') {
+                        b.classList.add('ring-2', t.ring);
+                    }
+                }
+            });
+        }
+
+        /**
+         * Switches the timer mode and resets the timer display.
+         * Used for manual mode switching (buttons)
+         */
+        function switchMode(mode) {
+            state.mode = mode;
+            state.timeLeft = state.settings[mode] * 60;
+            state.isRunning = false;
+            clearInterval(timerInterval);
+            
+            updateTimerDisplay();
+            updateModeButtons();
+            updatePlayIcon();
+            
+            if (mode === 'focus') {
+                els.statusText.textContent = "Time to Focus";
+                lastStatusText = "Time to Focus";
+            }
+            else {
+                els.statusText.textContent = "Take a Break";
+                lastStatusText = "Take a Break";
+            }
+
+            setCircleDashoffset(0);
+        }
+        
+        /**
+         * Switches the timer mode without resetting running state or interval.
+         * Used internally by completeTimer/skip functionality.
+         */
+        function switchModeInternal(mode) {
+            state.mode = mode;
+            state.timeLeft = state.settings[mode] * 60;
+            updateTimerDisplay();
+            updateModeButtons();
+            setCircleDashoffset(0);
+        }
+
+
+        function toggleTimer() {
+            if (isCustomInputActive) return; 
+            if (state.isRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+        }
+
+        function startTimer() {
+            if (state.timeLeft <= 0) {
+                state.timeLeft = state.settings[state.mode] * 60;
+            }
+            state.isRunning = true;
+            updatePlayIcon();
+            audio.init(); 
+
+            const totalTime = state.settings[state.mode] * 60;
+
+            timerInterval = setInterval(() => {
+                state.timeLeft--;
+                updateTimerDisplay();
+                
+                const rawFraction = state.timeLeft / totalTime;
+                const offset = FULL_DASH_ARRAY - (rawFraction * FULL_DASH_ARRAY);
+                setCircleDashoffset(offset);
+
+                if (state.timeLeft <= 0) {
+                    // Timer ran out naturally
+                    completeTimer(false); 
+                }
+            }, 1000);
+
+            els.statusText.textContent = state.mode === 'focus' ? "FOCUSING" : "BREAKING";
+            lastStatusText = els.statusText.textContent;
+        }
+
+        function pauseTimer() {
+            state.isRunning = false;
+            clearInterval(timerInterval);
+            updatePlayIcon();
+            els.statusText.textContent = "PAUSED";
+            lastStatusText = "PAUSED";
+        }
+
+        /**
+         * Handles timer completion (either naturally or via skip button).
+         * Auto-starts the next timer.
+         * @param {boolean} wasSkipped - true if triggered by skip button.
+         */
+        function completeTimer(wasSkipped) {
+            pauseTimer();
+            
+            if (!wasSkipped) {
+                audio.playChime();
+            }
+
+            if (state.mode === 'focus') {
+                if (!wasSkipped) { // Only count streak on natural completion
+                    state.streak++;
+                    els.streakDisplay.textContent = state.streak;
+                    saveSettings();
+                }
+                
+                // Determine next mode
+                const nextMode = (state.streak % 4 === 0 && state.streak !== 0) ? 'long' : 'short';
+                
+                // Switch mode internally to prepare the next time
+                switchModeInternal(nextMode); 
+                
+                els.statusText.textContent = wasSkipped ? "Focus Skipped, Starting Break" : "Focus Complete";
+                
+            } else { // Break mode
+                // Switch to Focus mode
+                switchModeInternal('focus');
+                els.statusText.textContent = wasSkipped ? "Break Skipped, Starting Focus" : "Break Over";
+            }
+            
+            lastStatusText = els.statusText.textContent;
+            
+            // Auto-start the newly set timer
+            startTimer();
+        }
+
+        function updateTimerDisplay() {
+            const m = Math.floor(state.timeLeft / 60);
+            const s = state.timeLeft % 60;
+            const timeStr = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            
+            // Only update the time display div if it hasn't been replaced by the input
+            if (!isCustomInputActive) {
+                els.timeDisplay.textContent = timeStr;
+            }
+            document.title = `${timeStr} - ZenFocus`;
+        }
+
+        function updatePlayIcon() {
+            const button = els.toggleBtn;
+            if (!button) return; 
+
+            // Clear the existing content to replace it with the new icon
+            button.innerHTML = '';
+            
+            const iconElement = document.createElement('i');
+            iconElement.classList.add('w-8', 'h-8');
+            iconElement.setAttribute('id', 'play-icon');
+            
+            if (state.isRunning) {
+                iconElement.setAttribute('data-lucide', 'pause');
+            } else {
+                iconElement.setAttribute('data-lucide', 'play');
+            }
+            
+            button.appendChild(iconElement);
+            
+            // Crucial: Re-render Lucide icons after changing innerHTML
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        }
+
+        function updateModeButtons() {
+            const ringColorClass = themes[state.settings.theme].ring;
+            
+            els.modeBtns.forEach(btn => {
+                const mode = btn.dataset.mode;
+                
+                // Remove all previous ring classes (including old themes)
+                btn.classList.forEach(cls => {
+                    if (cls.startsWith('ring-') || cls.startsWith('ring-offset-')) {
+                         btn.classList.remove(cls);
+                    }
+                });
+                
+                if (mode === state.mode) {
+                    btn.classList.remove('opacity-60', 'hover:opacity-100', 'hover:bg-white/10');
+                    btn.classList.add('bg-white/20', 'ring-2', ringColorClass, 'ring-offset-2', 'ring-offset-slate-900');
+                } else {
+                    btn.classList.add('opacity-60', 'hover:opacity-100', 'hover:bg-white/10');
+                    btn.classList.remove('bg-white/20');
+                }
+            });
+        }
+        
+        function updateNoiseControls(selectedType, isInit = false) {
+            // Only call startNoise on user interaction
+            if (!isInit) {
+                audio.startNoise(selectedType);
+            }
+
+            // Update UI
+            const description = noiseDescriptions[audio.currentNoiseType];
+            els.noiseTitle.textContent = description.title;
+            els.noiseDescription.textContent = description.desc;
+
+            // Update button states based on the *actual* current noise type
+            els.noiseTypeBtns.forEach(btn => {
+                if (btn.dataset.noise === audio.currentNoiseType) {
+                    btn.classList.remove('opacity-60', 'hover:opacity-100', 'hover:bg-white/10');
+                    btn.classList.add('bg-emerald-500', 'text-white');
+                } else {
+                    btn.classList.add('opacity-60', 'hover:opacity-100', 'hover:bg-white/10');
+                    btn.classList.remove('bg-emerald-500', 'text-white');
+                }
+            });
+            
+            state.currentNoiseType = audio.currentNoiseType;
+            saveSettings();
+        }
+
+        function setCircleDashoffset(offset) {
+            els.progressRing.style.strokeDashoffset = offset;
+        }
+
+        // --- Custom Time Input Logic ---
+        function enableCustomTimeInput() {
+            if (isCustomInputActive) return; 
+            if (state.isRunning) {
+                pauseTimer();
+            }
+            isCustomInputActive = true;
+            
+            lastStatusText = els.statusText.textContent;
+
+            // Get current minutes, round to nearest integer for input value
+            const currentMinutes = Math.round(state.timeLeft / 60);
+
+            // 1. Create and insert the input field
+            const inputHtml = `
+                <input type="number" id="custom-time-input" 
+                       class="time-input-style" 
+                       value="${currentMinutes}" min="1" max="180" 
+                       autofocus>
+                <div id="status-text" class="text-sm uppercase tracking-widest opacity-70">${lastStatusText}</div>
+            `;
+            els.timeInputWrapper.innerHTML = inputHtml;
+            const input = document.getElementById('custom-time-input');
+            
+            // 2. Re-bind the status text element
+            els.statusText = document.getElementById('status-text');
+
+            // 3. Focus and select
+            input.focus();
+            input.select();
+
+            const saveCustomTime = () => {
+                if (!isCustomInputActive) return;
+
+                let newMinutes = parseInt(input.value);
+                
+                if (isNaN(newMinutes) || newMinutes <= 0) {
+                    newMinutes = state.settings[state.mode]; // Revert to current setting
+                }
+
+                // Update state and settings
+                state.settings[state.mode] = newMinutes;
+                state.timeLeft = newMinutes * 60;
+                saveSettings();
+                lastStatusText = "Time Updated";
+                
+                // 4. Restore the time display structure
+                els.timeInputWrapper.innerHTML = `
+                    <div id="time-display" class="text-6xl font-bold tracking-tighter mb-1"></div>
+                    <div id="status-text" class="text-sm uppercase tracking-widest opacity-70">${lastStatusText}</div>
+                `;
+                
+                // 5. Re-bind the elements and listeners
+                els.timeDisplay = document.getElementById('time-display');
+                els.statusText = document.getElementById('status-text');
+
+                isCustomInputActive = false;
+                els.timeInputWrapper.addEventListener('click', enableCustomTimeInput);
+                updateTimerDisplay();
+                setCircleDashoffset(0);
+            };
+
+            // Event Listeners for input field
+            input.addEventListener('blur', saveCustomTime);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveCustomTime();
+                }
+            });
+
+            // Remove the listener from the wrapper while the input is active
+            els.timeInputWrapper.removeEventListener('click', enableCustomTimeInput);
+        }
+
+        // --- Event Listeners ---
+        els.startOverlayBtn.addEventListener('click', () => {
+            audio.init()
+                .then(() => {
+                    els.overlay.classList.add('opacity-0', 'pointer-events-none');
+                    setTimeout(() => els.overlay.remove(), 500);
+                })
+                .catch((error) => {
+                    console.error("Audio initialization failed. Proceeding without sound:", error);
+                    els.overlay.classList.add('opacity-0', 'pointer-events-none');
+                    setTimeout(() => els.overlay.remove(), 500);
+                });
+        });
+
+        els.toggleBtn.addEventListener('click', toggleTimer);
+        
+        // Skip Button: calls completeTimer with wasSkipped=true
+        els.skipBtn.addEventListener('click', () => completeTimer(true)); 
+
+        // Initial setup for time customization
+        els.timeInputWrapper.addEventListener('click', enableCustomTimeInput);
+
+        els.modeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.target.closest('.mode-btn');
+                if (target) {
+                    // Manual mode switch should reset and stop the timer
+                    switchMode(target.dataset.mode);
+                }
+            });
+        });
+
+        els.noiseTypeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.target.closest('.noise-type-btn');
+                if (target) {
+                    updateNoiseControls(target.dataset.noise);
+                }
+            });
+        });
+
+        els.noiseVolume.addEventListener('input', (e) => {
+            audio.setNoiseVolume(parseFloat(e.target.value));
+        });
+
+        // Settings Modal Handlers
+        els.settingsBtn.addEventListener('click', () => {
+            els.settingsInputs.focus.value = state.settings.focus;
+            els.settingsInputs.short.value = state.settings.short;
+            els.settingsInputs.long.value = state.settings.long;
+            
+            els.settingsModal.classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('settings-content').classList.remove('scale-95', 'opacity-0');
+                document.getElementById('settings-content').classList.add('scale-100', 'opacity-100');
+            }, 10);
+        });
+
+        const closeSettingsModal = () => {
+            document.getElementById('settings-content').classList.remove('scale-100', 'opacity-100');
+            document.getElementById('settings-content').classList.add('scale-95', 'opacity-0');
+            setTimeout(() => els.settingsModal.classList.add('hidden'), 300);
+        };
+
+        els.closeSettings.addEventListener('click', closeSettingsModal);
+
+        els.saveSettings.addEventListener('click', () => {
+            state.settings.focus = parseInt(els.settingsInputs.focus.value) || 25;
+            state.settings.short = parseInt(els.settingsInputs.short.value) || 5;
+            state.settings.long = parseInt(els.settingsInputs.long.value) || 15;
+            
+            const selectedThemeBtn = document.querySelector('.theme-btn.ring-2');
+            if (selectedThemeBtn) {
+                 state.settings.theme = selectedThemeBtn.dataset.theme;
+            }
+            
+            saveSettings();
+            applyTheme(state.settings.theme);
+            // Re-apply current mode settings if timer is not running
+            if (!state.isRunning) switchMode(state.mode); 
+            closeSettingsModal();
+        });
+
+        els.themeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const targetBtn = e.currentTarget; 
+                const themeName = targetBtn.dataset.theme;
+                const ringClass = themes[themeName].ring;
+
+                els.themeBtns.forEach(b => b.classList.remove('ring-2', themes.midnight.ring, themes.latte.ring, themes.forest.ring));
+                targetBtn.classList.add('ring-2', ringClass);
+            });
+        });
+
+        // Init: Wait for the DOM and scripts to fully load before running the app logic
+        window.onload = init;
+
+    </script>
+</body>
+</html>
