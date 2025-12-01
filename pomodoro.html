@@ -6,12 +6,15 @@
     <title>ZenFocus | Deep Work Timer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Lucide Icons Library -->
+    <!-- Lucide Icons Library is kept for the smaller utility icons -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.js"></script>
     <style>
         body {
             font-family: 'Quicksand', sans-serif;
             transition: background-color 0.5s ease, color 0.5s ease;
+            /* Font smoothing for text (like the time display) */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
         
         /* Custom Range Slider */
@@ -135,21 +138,27 @@
                 </svg>
                 
                 <div class="text-center z-10 cursor-pointer" id="time-input-wrapper">
-                    <!-- time-display element will be dynamically replaced on click -->
                     <div id="time-display" class="text-6xl font-bold tracking-tighter mb-1">25:00</div>
                     <div id="status-text" class="text-sm uppercase tracking-widest opacity-70">Ready to Focus</div>
                 </div>
             </div>
 
-            <!-- Controls -->
-            <div class="flex justify-center items-center gap-6">
+            <!-- Controls (Now using embedded SVGs for guaranteed visibility) -->
+            <div class="flex justify-center items-center gap-6 relative z-30">
                 <!-- Play/Pause Button -->
                 <button id="toggle-btn" class="p-6 rounded-full bg-white text-slate-900 hover:scale-105 transition-all shadow-lg hover:shadow-xl flex items-center justify-center">
-                    <i data-lucide="play" class="w-8 h-8" id="play-icon"></i>
+                    <!-- Container for the dynamically injected Play/Pause SVG -->
+                    <span id="play-icon-container" class="w-8 h-8 flex items-center justify-center">
+                        <!-- Initial icon content will be added by JS -->
+                    </span>
                 </button>
                 <!-- Skip Button -->
                 <button id="skip-btn" class="p-4 rounded-full bg-white/5 hover:bg-white/10 transition-all text-white/80 flex items-center justify-center">
-                    <i data-lucide="skip-forward" class="w-6 h-6"></i>
+                    <!-- Embedded SVG for Skip Forward -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 4 15 12 5 20 5 4"/>
+                        <line x1="19" x2="19" y1="5" y2="19"/>
+                    </svg>
                 </button>
             </div>
         </div>
@@ -255,7 +264,7 @@
                 this.BUFFER_DURATION = 120; // 2 minutes
                 this.TINY_GAIN = 0.0001; // Safe non-zero gain start
                 
-                // NEW: Scheduled start time constants
+                // Scheduled start time constants
                 this.SOURCE_START_DELAY = 0.05; // 50ms delay for safety
                 this.FADE_DURATION = 2.0; // 2 seconds ramp time
             }
@@ -597,7 +606,7 @@
             timeDisplay: document.getElementById('time-display'),
             statusText: document.getElementById('status-text'),
             timeInputWrapper: document.getElementById('time-input-wrapper'),
-            toggleBtn: document.getElementById('toggle-btn'), // Renamed from startBtn for clarity
+            toggleBtn: document.getElementById('toggle-btn'), 
             skipBtn: document.getElementById('skip-btn'),
             modeBtns: document.querySelectorAll('.mode-btn'),
             progressRing: document.getElementById('progress-ring'),
@@ -620,6 +629,24 @@
             },
             themeBtns: document.querySelectorAll('.theme-btn')
         };
+        
+        // Custom SVG Icons (hardcoded to ensure rendering)
+        const getPlayPauseSvg = (type) => {
+            const size = type === 'play' ? 32 : 32;
+            
+            // Added filter: drop-shadow for smoothing the SVG edges
+            const svgStyle = 'style="filter: drop-shadow(0px 0px 0.5px rgba(0, 0, 0, 0.4))"';
+
+            const playSvg = `<svg xmlns="http://www.w3.org/2000/svg" ${svgStyle} width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>`;
+            const pauseSvg = `<svg xmlns="http://www.w3.org/2000/svg" ${svgStyle} width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8">
+                <rect x="6" y="4" width="4" height="16"/>
+                <rect x="14" y="4" width="4" height="16"/>
+            </svg>`;
+            return type === 'play' ? playSvg : pauseSvg;
+        }
+
 
         const noiseDescriptions = {
             'none': { title: 'Ambient Volume', desc: 'Sound is currently off.' },
@@ -638,16 +665,17 @@
         // --- Core Functions ---
 
         function init() {
-            // Check if lucide is available before calling createIcons
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
-            }
             loadSettings();
             applyTheme(state.settings.theme);
             switchMode(state.mode); // Initialize time
             updateTimerDisplay();
             updateNoiseControls(state.currentNoiseType, true); // Use silent init
             updatePlayIcon();
+            
+            // Render all smaller Lucide icons once everything else is ready
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
         }
 
         function loadSettings() {
@@ -676,7 +704,8 @@
             const t = themes[themeName];
             // Update classes
             els.appBody.className = `min-h-screen flex flex-col items-center justify-start pt-10 p-4 transition-colors duration-700 ${t.bg} ${t.text}`;
-            els.progressRing.setAttribute('class', `text-current transition-all duration-1000 ${t.ring.replace('ring-', 'text-')} stroke-dasharray="754" stroke-dashoffset="0" stroke-linecap="round"`);
+            els.progressRing.style.stroke = t.accent.replace('text-', 'currentColor'); // Set SVG stroke color dynamically
+            els.progressRing.setAttribute('class', `text-current transition-all duration-1000 stroke-dasharray="754" stroke-dashoffset="0" stroke-linecap="round"`);
             
             updateModeButtons();
             
@@ -690,10 +719,7 @@
                 });
                 
                 if (b.dataset.theme === themeName) {
-                    // Check if lucide is available before calling createIcons
-                    if (typeof lucide !== 'undefined') {
-                        b.classList.add('ring-2', t.ring);
-                    }
+                    b.classList.add('ring-2', t.ring);
                 }
             });
         }
@@ -832,29 +858,16 @@
             }
             document.title = `${timeStr} - ZenFocus`;
         }
-
+        
+        // Custom function to update the embedded SVG icon
         function updatePlayIcon() {
-            const button = els.toggleBtn;
-            if (!button) return; 
+            const iconContainer = document.getElementById('play-icon-container');
+            if (!iconContainer) return; 
 
-            // Clear the existing content to replace it with the new icon
-            button.innerHTML = '';
-            
-            const iconElement = document.createElement('i');
-            iconElement.classList.add('w-8', 'h-8');
-            iconElement.setAttribute('id', 'play-icon');
-            
             if (state.isRunning) {
-                iconElement.setAttribute('data-lucide', 'pause');
+                iconContainer.innerHTML = getPlayPauseSvg('pause');
             } else {
-                iconElement.setAttribute('data-lucide', 'play');
-            }
-            
-            button.appendChild(iconElement);
-            
-            // Crucial: Re-render Lucide icons after changing innerHTML
-            if (typeof lucide !== 'undefined') {
-                lucide.createIcons();
+                iconContainer.innerHTML = getPlayPauseSvg('play');
             }
         }
 
@@ -925,6 +938,7 @@
             const currentMinutes = Math.round(state.timeLeft / 60);
 
             // 1. Create and insert the input field
+            // Note: We keep the status-text ID in the wrapper to be re-bound later
             const inputHtml = `
                 <input type="number" id="custom-time-input" 
                        class="time-input-style" 
@@ -1081,7 +1095,9 @@
         });
 
         // Init: Wait for the DOM and scripts to fully load before running the app logic
-        window.onload = init;
+        window.onload = function() {
+            init(); 
+        };
 
     </script>
 </body>
