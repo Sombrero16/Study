@@ -6,13 +6,12 @@
     <title>ZenFocus | Deep Work Timer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Lucide Icons Library is kept for the smaller utility icons -->
+    <!-- Lucide Icons Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.js"></script>
     <style>
         body {
             font-family: 'Quicksand', sans-serif;
             transition: background-color 0.5s ease, color 0.5s ease;
-            /* Font smoothing for text (like the time display) */
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
@@ -60,7 +59,8 @@
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
-        /* Custom input style for time customization - keeps the large font */
+        
+        /* Custom input style for time customization */
         .time-input-style {
             background: none;
             border: none;
@@ -70,15 +70,34 @@
             width: 100%;
             font-weight: bold;
             line-height: 1;
-            /* Match time-display style */
             font-size: 3.75rem; /* text-6xl */
             letter-spacing: -0.05em; /* tracking-tighter */
             max-width: 200px;
         }
-        /* Ensure input uses full width inside the wrapper */
         #time-input-wrapper {
             max-width: 200px;
             margin: 0 auto;
+        }
+
+        /* Styles specifically for the side timer inputs */
+        .side-input {
+            background: transparent;
+            border-bottom: 2px solid rgba(255,255,255,0.2);
+            color: inherit;
+            font-family: inherit;
+            text-align: center;
+            width: 3.5rem; 
+            padding: 0.25rem;
+        }
+        .side-input:focus {
+            outline: none;
+            border-color: currentColor;
+        }
+        /* Remove arrows from number input */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
         }
     </style>
 </head>
@@ -96,110 +115,157 @@
         </div>
     </div>
 
-    <!-- MAIN HEADER -->
-    <header class="w-full max-w-lg mb-8 flex justify-between items-center px-2">
-        <div class="flex items-center gap-2">
-            <i data-lucide="sun" class="w-6 h-6 text-emerald-400"></i>
-            <h1 class="text-2xl font-bold tracking-tight">ZenFocus Studio</h1>
-        </div>
-        <button id="settings-btn" class="p-2 hover:bg-white/10 rounded-full transition-colors">
-            <i data-lucide="settings" class="w-6 h-6"></i>
-        </button>
-    </header>
+    <!-- Layout Wrapper: Flex container to hold Main App and Side Timer -->
+    <div class="w-full max-w-6xl flex flex-col lg:flex-row items-start justify-center gap-8 relative z-10">
 
+        <!-- LEFT COLUMN: Original Pomodoro App -->
+        <div class="w-full max-w-lg flex flex-col items-center mx-auto lg:mx-0">
+            
+            <!-- MAIN HEADER -->
+            <header class="w-full mb-8 flex justify-between items-center px-2">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="sun" class="w-6 h-6 text-emerald-400"></i>
+                    <h1 class="text-2xl font-bold tracking-tight">ZenFocus Studio</h1>
+                </div>
+                <button id="settings-btn" class="p-2 hover:bg-white/10 rounded-full transition-colors">
+                    <i data-lucide="settings" class="w-6 h-6"></i>
+                </button>
+            </header>
 
-    <!-- Main Container -->
-    <main class="w-full max-w-lg relative z-10">
-        
-        <!-- Header / Stats -->
-        <div class="flex justify-start items-center mb-8 px-2 gap-4">
-            <div class="flex items-center gap-2 glass-panel rounded-full px-4 py-2">
-                <i data-lucide="flame" class="w-5 h-5 text-orange-400"></i>
-                <span id="streak-display" class="font-medium text-lg">0</span>
-                <span class="text-xs opacity-60 uppercase tracking-wider ml-1">Sessions</span>
-            </div>
-        </div>
-
-        <!-- Timer Card -->
-        <div class="glass-panel rounded-3xl p-8 mb-6 shadow-2xl relative overflow-hidden">
-            <!-- Mode Tabs -->
-            <div class="flex justify-center gap-2 mb-8 relative z-20">
-                <button data-mode="focus" class="mode-btn px-6 py-2 rounded-full text-sm font-bold transition-all bg-white/20 text-white ring-2 ring-transparent ring-offset-2 ring-offset-transparent">Focus</button>
-                <button data-mode="short" class="mode-btn px-6 py-2 rounded-full text-sm font-bold transition-all opacity-60 hover:opacity-100 hover:bg-white/10">Short Break</button>
-                <button data-mode="long" class="mode-btn px-6 py-2 rounded-full text-sm font-bold transition-all opacity-60 hover:opacity-100 hover:bg-white/10">Long Break</button>
-            </div>
-
-            <!-- Main Timer -->
-            <div id="time-container" class="relative w-64 h-64 mx-auto mb-8 flex items-center justify-center">
-                <!-- SVG Circle Progress -->
-                <svg class="absolute top-0 left-0 w-full h-full transform -rotate-90 pointer-events-none">
-                    <circle cx="128" cy="128" r="120" stroke="currentColor" stroke-width="8" fill="transparent" class="text-white/10" />
-                    <circle id="progress-ring" cx="128" cy="128" r="120" stroke="currentColor" stroke-width="8" fill="transparent" class="text-current transition-all duration-1000" stroke-dasharray="754" stroke-dashoffset="0" stroke-linecap="round" />
-                </svg>
+            <!-- Main Container (Original Main) -->
+            <main class="w-full relative z-10">
                 
-                <div class="text-center z-10 cursor-pointer" id="time-input-wrapper">
-                    <div id="time-display" class="text-6xl font-bold tracking-tighter mb-1">25:00</div>
-                    <div id="status-text" class="text-sm uppercase tracking-widest opacity-70">Ready to Focus</div>
-                </div>
-            </div>
-
-            <!-- Controls (Now using embedded SVGs for guaranteed visibility) -->
-            <div class="flex justify-center items-center gap-6 relative z-30">
-                <!-- Play/Pause Button -->
-                <button id="toggle-btn" class="p-6 rounded-full bg-white text-slate-900 hover:scale-105 transition-all shadow-lg hover:shadow-xl flex items-center justify-center">
-                    <!-- Container for the dynamically injected Play/Pause SVG -->
-                    <span id="play-icon-container" class="w-8 h-8 flex items-center justify-center">
-                        <!-- Initial icon content will be added by JS -->
-                    </span>
-                </button>
-                <!-- Skip Button -->
-                <button id="skip-btn" class="p-4 rounded-full bg-white/5 hover:bg-white/10 transition-all text-white/80 flex items-center justify-center">
-                    <!-- Embedded SVG for Skip Forward -->
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polygon points="5 4 15 12 5 20 5 4"/>
-                        <line x1="19" x2="19" y1="5" y2="19"/>
-                    </svg>
-                </button>
-            </div>
-        </div>
-
-        <!-- Task & Ambient Controls -->
-        <div class="glass-panel rounded-2xl p-6">
-            <!-- Task Input -->
-            <div class="mb-6">
-                <label class="text-xs uppercase tracking-wider opacity-60 mb-2 block">Current Focus</label>
-                <div class="relative group">
-                    <input type="text" id="task-input" placeholder="What are you learning?" 
-                        class="w-full bg-transparent border-b-2 border-white/20 py-2 pl-8 pr-4 focus:outline-none focus:border-white transition-colors text-lg placeholder-white/30">
-                    <i data-lucide="pen-tool" class="w-4 h-4 absolute left-0 top-3 opacity-50 group-focus-within:opacity-100 transition-opacity"></i>
-                </div>
-            </div>
-
-            <!-- Audio Controls -->
-            <div class="space-y-4">
-                <label class="text-xs uppercase tracking-wider opacity-60 mb-2 block">Ambient Sound Type</label>
-                <div class="flex gap-2 flex-wrap mb-4">
-                    <button data-noise="none" class="noise-type-btn px-4 py-2 rounded-full text-sm transition-all bg-emerald-500 text-white">None</button>
-                    <button data-noise="brown" class="noise-type-btn px-4 py-2 rounded-full text-sm transition-all opacity-60 hover:opacity-100 hover:bg-white/10">Brown Noise</button>
-                    <button data-noise="white" class="noise-type-btn px-4 py-2 rounded-full text-sm transition-all opacity-60 hover:opacity-100 hover:bg-white/10">White Noise</button>
-                    <button data-noise="binaural" class="noise-type-btn px-4 py-2 rounded-full text-sm transition-all opacity-60 hover:opacity-100 hover:bg-white/10">Binaural Beats</button>
+                <!-- Header / Stats -->
+                <div class="flex justify-start items-center mb-8 px-2 gap-4">
+                    <div class="flex items-center gap-2 glass-panel rounded-full px-4 py-2">
+                        <i data-lucide="flame" class="w-5 h-5 text-orange-400"></i>
+                        <span id="streak-display" class="font-medium text-lg">0</span>
+                        <span class="text-xs opacity-60 uppercase tracking-wider ml-1">Sessions</span>
+                    </div>
                 </div>
 
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                        <i data-lucide="volume-2" class="w-5 h-5 opacity-60"></i>
-                        <div>
-                            <div class="text-sm font-medium" id="noise-title">Ambient Volume</div>
-                            <div class="text-xs opacity-60" id="noise-description">Current: None</div>
+                <!-- Timer Card -->
+                <div class="glass-panel rounded-3xl p-8 mb-6 shadow-2xl relative overflow-hidden">
+                    <!-- Mode Tabs -->
+                    <div class="flex justify-center gap-2 mb-8 relative z-20">
+                        <button data-mode="focus" class="mode-btn px-6 py-2 rounded-full text-sm font-bold transition-all bg-white/20 text-white ring-2 ring-transparent ring-offset-2 ring-offset-transparent">Focus</button>
+                        <button data-mode="short" class="mode-btn px-6 py-2 rounded-full text-sm font-bold transition-all opacity-60 hover:opacity-100 hover:bg-white/10">Short Break</button>
+                        <button data-mode="long" class="mode-btn px-6 py-2 rounded-full text-sm font-bold transition-all opacity-60 hover:opacity-100 hover:bg-white/10">Long Break</button>
+                    </div>
+
+                    <!-- Main Timer -->
+                    <div id="time-container" class="relative w-64 h-64 mx-auto mb-8 flex items-center justify-center">
+                        <!-- SVG Circle Progress -->
+                        <svg class="absolute top-0 left-0 w-full h-full transform -rotate-90 pointer-events-none">
+                            <circle cx="128" cy="128" r="120" stroke="currentColor" stroke-width="8" fill="transparent" class="text-white/10" />
+                            <circle id="progress-ring" cx="128" cy="128" r="120" stroke="currentColor" stroke-width="8" fill="transparent" class="text-current transition-all duration-1000" stroke-dasharray="754" stroke-dashoffset="0" stroke-linecap="round" />
+                        </svg>
+                        
+                        <div class="text-center z-10 cursor-pointer" id="time-input-wrapper">
+                            <div id="time-display" class="text-6xl font-bold tracking-tighter mb-1">25:00</div>
+                            <div id="status-text" class="text-sm uppercase tracking-widest opacity-70">Ready to Focus</div>
                         </div>
                     </div>
-                    <!-- Slider output is linear (0 to 1), mapped exponentially for perceived volume -->
-                    <input type="range" id="noise-volume" min="0" max="1" step="0.01" value="0.5" class="w-24 accent-white">
+
+                    <!-- Controls -->
+                    <div class="flex justify-center items-center gap-6 relative z-30">
+                        <!-- Play/Pause Button -->
+                        <button id="toggle-btn" class="p-6 rounded-full bg-white text-slate-900 hover:scale-105 transition-all shadow-lg hover:shadow-xl flex items-center justify-center">
+                            <span id="play-icon-container" class="w-8 h-8 flex items-center justify-center">
+                                <!-- Icon injected by JS -->
+                            </span>
+                        </button>
+                        <!-- Skip Button -->
+                        <button id="skip-btn" class="p-4 rounded-full bg-white/5 hover:bg-white/10 transition-all text-white/80 flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polygon points="5 4 15 12 5 20 5 4"/>
+                                <line x1="19" x2="19" y1="5" y2="19"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-            </div>
+
+                <!-- Task & Ambient Controls -->
+                <div class="glass-panel rounded-2xl p-6">
+                    <!-- Task Input -->
+                    <div class="mb-6">
+                        <label class="text-xs uppercase tracking-wider opacity-60 mb-2 block">Current Focus</label>
+                        <div class="relative group">
+                            <input type="text" id="task-input" placeholder="What are you learning?" 
+                                class="w-full bg-transparent border-b-2 border-white/20 py-2 pl-8 pr-4 focus:outline-none focus:border-white transition-colors text-lg placeholder-white/30">
+                            <i data-lucide="pen-tool" class="w-4 h-4 absolute left-0 top-3 opacity-50 group-focus-within:opacity-100 transition-opacity"></i>
+                        </div>
+                    </div>
+
+                    <!-- Audio Controls -->
+                    <div class="space-y-4">
+                        <label class="text-xs uppercase tracking-wider opacity-60 mb-2 block">Ambient Sound Type</label>
+                        <div class="flex gap-2 flex-wrap mb-4">
+                            <button data-noise="none" class="noise-type-btn px-4 py-2 rounded-full text-sm transition-all bg-emerald-500 text-white">None</button>
+                            <button data-noise="brown" class="noise-type-btn px-4 py-2 rounded-full text-sm transition-all opacity-60 hover:opacity-100 hover:bg-white/10">Brown Noise</button>
+                            <button data-noise="white" class="noise-type-btn px-4 py-2 rounded-full text-sm transition-all opacity-60 hover:opacity-100 hover:bg-white/10">White Noise</button>
+                            <button data-noise="binaural" class="noise-type-btn px-4 py-2 rounded-full text-sm transition-all opacity-60 hover:opacity-100 hover:bg-white/10">Binaural Beats</button>
+                        </div>
+
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <i data-lucide="volume-2" class="w-5 h-5 opacity-60"></i>
+                                <div>
+                                    <div class="text-sm font-medium" id="noise-title">Ambient Volume</div>
+                                    <div class="text-xs opacity-60" id="noise-description">Current: None</div>
+                                </div>
+                            </div>
+                            <input type="range" id="noise-volume" min="0" max="1" step="0.01" value="0.5" class="w-24 accent-white">
+                        </div>
+                    </div>
+                </div>
+            </main>
         </div>
 
-    </main>
+        <!-- RIGHT COLUMN: New Side Timer -->
+        <aside class="w-full max-w-xs lg:mt-[5.5rem] transition-all duration-700">
+             <div class="glass-panel rounded-3xl p-6 shadow-xl sticky top-8">
+                <div class="flex items-center gap-2 mb-6 opacity-80">
+                    <i data-lucide="hourglass" class="w-5 h-5"></i>
+                    <h2 class="text-lg font-bold">Custom Timer</h2>
+                </div>
+
+                <!-- Custom Timer Display / Input (HH:MM:SS) -->
+                <div class="flex items-center justify-center gap-1 mb-8 font-bold text-4xl tracking-tight">
+                    <div class="flex flex-col items-center">
+                        <input type="number" id="side-h" min="0" max="24" value="00" class="side-input bg-transparent text-center focus:outline-none focus:border-white transition-colors placeholder-white/30">
+                        <span class="text-[10px] font-normal uppercase opacity-50 mt-1 tracking-wider">Hrs</span>
+                    </div>
+                    <span class="pb-5 px-1">:</span>
+                    <div class="flex flex-col items-center">
+                        <input type="number" id="side-m" min="0" max="59" value="00" class="side-input bg-transparent text-center focus:outline-none focus:border-white transition-colors placeholder-white/30">
+                        <span class="text-[10px] font-normal uppercase opacity-50 mt-1 tracking-wider">Mins</span>
+                    </div>
+                    <span class="pb-5 px-1">:</span>
+                    <div class="flex flex-col items-center">
+                        <input type="number" id="side-s" min="0" max="59" value="00" class="side-input bg-transparent text-center focus:outline-none focus:border-white transition-colors placeholder-white/30">
+                        <span class="text-[10px] font-normal uppercase opacity-50 mt-1 tracking-wider">Sec</span>
+                    </div>
+                </div>
+
+                <!-- Custom Timer Controls -->
+                <div class="flex justify-center gap-4">
+                    <button id="side-reset" class="p-3 rounded-full bg-white/5 hover:bg-white/10 text-white transition-all" title="Reset">
+                        <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                    </button>
+                    <!-- FIX: Added container for reliable SVG injection -->
+                    <button id="side-toggle" class="p-3 rounded-full bg-white text-slate-900 hover:scale-105 transition-all shadow-lg" title="Start">
+                        <span id="side-icon-container" class="w-6 h-6 flex items-center justify-center"></span>
+                    </button>
+                </div>
+                
+                <div class="mt-6 text-center">
+                    <p id="side-status" class="text-xs uppercase tracking-widest opacity-60">Set Time</p>
+                </div>
+             </div>
+        </aside>
+
+    </div>
 
     <!-- Settings Modal -->
     <div id="settings-modal" class="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
@@ -496,72 +562,66 @@
                 }
             }
             
-            // --- Smoother, lower-pitched Chime ---
+            // --- MAIN CHIME (Low, G4) ---
             playChime() {
                 if (!this.ctx) return;
-
-                // Ensure context is running before scheduling audio
                 this.ctx.resume().then(() => {
-                    const t = this.ctx.currentTime;
-                    const duration = 4; 
-                    const freq = 392; 
-                    const sourceStartTime = t + 0.01; // Small delay for the chime too
-
-                    // Fundamental Tone
-                    const osc = this.ctx.createOscillator();
-                    const gain = this.ctx.createGain();
-                    
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(freq, t); 
-                    
-                    // GSS for Chime: Set tiny gain now
-                    gain.gain.setValueAtTime(this.TINY_GAIN, t); 
-                    
-                    // Hold tiny gain until source start
-                    gain.gain.linearRampToValueAtTime(this.TINY_GAIN, sourceStartTime);
-                    
-                    // Attack (Fade in) starting at source start
-                    gain.gain.linearRampToValueAtTime(0.2, sourceStartTime + 0.1); 
-                    
-                    // Decay (starting from 0.2)
-                    gain.gain.exponentialRampToValueAtTime(this.TINY_GAIN, t + duration);
-
-                    osc.connect(gain);
-                    gain.connect(this.ctx.destination);
-                    
-                    // Second Harmonic
-                    const osc2 = this.ctx.createOscillator();
-                    const gain2 = this.ctx.createGain();
-                    osc2.type = 'sine';
-                    osc2.frequency.value = freq * 2; 
-                    
-                    // GSS for Harmonic: Set tiny gain now
-                    gain2.gain.setValueAtTime(this.TINY_GAIN, t); 
-                    
-                    // Hold tiny gain until source start
-                    gain2.gain.linearRampToValueAtTime(this.TINY_GAIN, sourceStartTime);
-
-                    // Attack
-                    gain2.gain.linearRampToValueAtTime(0.05, sourceStartTime + 0.1);
-                    
-                    // Decay
-                    gain2.gain.exponentialRampToValueAtTime(this.TINY_GAIN, t + duration - 1); 
-
-                    osc2.connect(gain2);
-                    gain2.connect(this.ctx.destination);
-
-                    // Start/Stop
-                    osc.start(sourceStartTime); // Delayed start
-                    osc.stop(t + duration + 0.1);
-                    osc2.start(sourceStartTime); // Delayed start
-                    osc2.stop(t + duration);
-
-                    // Clean up nodes
-                    osc.onended = () => {
-                        try { osc.disconnect(); gain.disconnect(); } catch (e) {}
-                        try { osc2.disconnect(); gain2.disconnect(); } catch (e) {}
-                    };
+                    this._playToneInternal(392, 4); // G4
                 });
+            }
+
+            // --- SIDE TIMER CHIME (Higher, Distinct, Repeated) ---
+            playSideTimerChime() {
+                if (!this.ctx) return;
+                this.ctx.resume().then(() => {
+                    const now = this.ctx.currentTime;
+                    // Play first tone (High C, 523.25Hz)
+                    this._playToneInternal(523.25, 0.8, now);
+                    // Play second tone (Repeated) after 0.5s delay
+                    this._playToneInternal(523.25, 0.8, now + 0.5);
+                });
+            }
+
+            // Helper for tones
+            _playToneInternal(freq, duration, startTime) {
+                const t = startTime || this.ctx.currentTime;
+                
+                // Fundamental Tone
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, t); 
+                
+                gain.gain.setValueAtTime(this.TINY_GAIN, t); 
+                gain.gain.linearRampToValueAtTime(0.2, t + 0.1); // Attack
+                gain.gain.exponentialRampToValueAtTime(this.TINY_GAIN, t + duration); // Decay
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                // Harmonic (lighter)
+                const osc2 = this.ctx.createOscillator();
+                const gain2 = this.ctx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.value = freq * 2; 
+                
+                gain2.gain.setValueAtTime(this.TINY_GAIN, t); 
+                gain2.gain.linearRampToValueAtTime(0.05, t + 0.1);
+                gain2.gain.exponentialRampToValueAtTime(this.TINY_GAIN, t + duration - 1); 
+
+                osc2.connect(gain2);
+                gain2.connect(this.ctx.destination);
+
+                osc.start(t);
+                osc.stop(t + duration + 0.1);
+                osc2.start(t);
+                osc2.stop(t + duration);
+
+                osc.onended = () => {
+                    try { osc.disconnect(); gain.disconnect(); } catch (e) {}
+                    try { osc2.disconnect(); gain2.disconnect(); } catch (e) {}
+                };
             }
             
             // Utility for smooth decay
@@ -596,6 +656,14 @@
             }
         };
 
+        // Side Timer State
+        const sideTimerState = {
+            totalSeconds: 0,
+            remainingSeconds: 0,
+            isRunning: false,
+            interval: null
+        };
+
         let timerInterval = null;
         const FULL_DASH_ARRAY = 754; 
         let isCustomInputActive = false;
@@ -627,24 +695,36 @@
                 short: document.getElementById('setting-short'),
                 long: document.getElementById('setting-long')
             },
-            themeBtns: document.querySelectorAll('.theme-btn')
+            themeBtns: document.querySelectorAll('.theme-btn'),
+            // Side Timer Elements
+            sideH: document.getElementById('side-h'),
+            sideM: document.getElementById('side-m'),
+            sideS: document.getElementById('side-s'),
+            sideToggle: document.getElementById('side-toggle'),
+            sideReset: document.getElementById('side-reset'),
+            sideStatus: document.getElementById('side-status'),
+            sideIconContainer: document.getElementById('side-icon-container') // New container ref
         };
         
-        // Custom SVG Icons (hardcoded to ensure rendering)
+        // Custom SVG Icons
+        // Accepts: 'play', 'pause', 'play-small', 'pause-small'
         const getPlayPauseSvg = (type) => {
-            const size = type === 'play' ? 32 : 32;
+            const isSmall = type.includes('small');
+            const mode = type.includes('pause') ? 'pause' : 'play';
             
-            // Added filter: drop-shadow for smoothing the SVG edges
+            const size = isSmall ? 24 : 32;
             const svgStyle = 'style="filter: drop-shadow(0px 0px 0.5px rgba(0, 0, 0, 0.4))"';
-
-            const playSvg = `<svg xmlns="http://www.w3.org/2000/svg" ${svgStyle} width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8">
+            
+            const playSvg = `<svg xmlns="http://www.w3.org/2000/svg" ${svgStyle} width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${isSmall ? 'w-6 h-6' : 'w-8 h-8'}">
                 <polygon points="5 3 19 12 5 21 5 3"/>
             </svg>`;
-            const pauseSvg = `<svg xmlns="http://www.w3.org/2000/svg" ${svgStyle} width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8">
+            
+            const pauseSvg = `<svg xmlns="http://www.w3.org/2000/svg" ${svgStyle} width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" stroke="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${isSmall ? 'w-6 h-6' : 'w-8 h-8'}">
                 <rect x="6" y="4" width="4" height="16"/>
                 <rect x="14" y="4" width="4" height="16"/>
             </svg>`;
-            return type === 'play' ? playSvg : pauseSvg;
+            
+            return mode === 'play' ? playSvg : pauseSvg;
         }
 
 
@@ -671,6 +751,7 @@
             updateTimerDisplay();
             updateNoiseControls(state.currentNoiseType, true); // Use silent init
             updatePlayIcon();
+            updateSidePlayIcon(); // Init side icon
             
             // Render all smaller Lucide icons once everything else is ready
             if (typeof lucide !== 'undefined') {
@@ -859,7 +940,7 @@
             document.title = `${timeStr} - ZenFocus`;
         }
         
-        // Custom function to update the embedded SVG icon
+        // Custom function to update the embedded SVG icon (Main)
         function updatePlayIcon() {
             const iconContainer = document.getElementById('play-icon-container');
             if (!iconContainer) return; 
@@ -868,6 +949,17 @@
                 iconContainer.innerHTML = getPlayPauseSvg('pause');
             } else {
                 iconContainer.innerHTML = getPlayPauseSvg('play');
+            }
+        }
+        
+        // Custom function to update the embedded SVG icon (Side)
+        function updateSidePlayIcon() {
+            if (!els.sideIconContainer) return;
+            
+            if (sideTimerState.isRunning) {
+                els.sideIconContainer.innerHTML = getPlayPauseSvg('pause-small');
+            } else {
+                els.sideIconContainer.innerHTML = getPlayPauseSvg('play-small');
             }
         }
 
@@ -1000,7 +1092,148 @@
             els.timeInputWrapper.removeEventListener('click', enableCustomTimeInput);
         }
 
-        // --- Event Listeners ---
+        // --- SIDE TIMER LOGIC ---
+
+        function updateSideDisplay(h, m, s) {
+            // Update the input values directly to show countdown
+            els.sideH.value = h.toString().padStart(2, '0');
+            els.sideM.value = m.toString().padStart(2, '0');
+            els.sideS.value = s.toString().padStart(2, '0');
+        }
+
+        function getSideInputValues() {
+            let h = parseInt(els.sideH.value) || 0;
+            let m = parseInt(els.sideM.value) || 0;
+            let s = parseInt(els.sideS.value) || 0;
+            return { h, m, s };
+        }
+
+        function toggleSideTimer() {
+            if (sideTimerState.isRunning) {
+                // Pause
+                clearInterval(sideTimerState.interval);
+                sideTimerState.isRunning = false;
+                els.sideStatus.textContent = "Paused";
+                
+                updateSidePlayIcon();
+                
+                // Allow editing again
+                els.sideH.disabled = false;
+                els.sideM.disabled = false;
+                els.sideS.disabled = false;
+            } else {
+                // Start
+                if (sideTimerState.remainingSeconds <= 0) {
+                    const { h, m, s } = getSideInputValues();
+                    if (h === 0 && m === 0 && s === 0) return; // Don't start if 0
+                    
+                    sideTimerState.totalSeconds = (h * 3600) + (m * 60) + s;
+                    sideTimerState.remainingSeconds = sideTimerState.totalSeconds;
+                }
+                
+                // Initialize audio context if not already
+                audio.init();
+
+                sideTimerState.isRunning = true;
+                els.sideStatus.textContent = "Running";
+                
+                updateSidePlayIcon();
+                
+                // Disable inputs while running
+                els.sideH.disabled = true;
+                els.sideM.disabled = true;
+                els.sideS.disabled = true;
+                
+                // Show seconds immediately
+                const h = Math.floor(sideTimerState.remainingSeconds / 3600);
+                const m = Math.floor((sideTimerState.remainingSeconds % 3600) / 60);
+                const s = sideTimerState.remainingSeconds % 60;
+                updateSideDisplay(h, m, s);
+
+                sideTimerState.interval = setInterval(() => {
+                    sideTimerState.remainingSeconds--;
+                    
+                    const h = Math.floor(sideTimerState.remainingSeconds / 3600);
+                    const m = Math.floor((sideTimerState.remainingSeconds % 3600) / 60);
+                    const s = sideTimerState.remainingSeconds % 60;
+                    
+                    updateSideDisplay(h, m, s);
+
+                    if (sideTimerState.remainingSeconds <= 0) {
+                        completeSideTimer();
+                    }
+                }, 1000);
+            }
+        }
+
+        function resetSideTimer() {
+            clearInterval(sideTimerState.interval);
+            sideTimerState.isRunning = false;
+            sideTimerState.remainingSeconds = 0;
+            sideTimerState.totalSeconds = 0;
+            
+            // Reset UI
+            els.sideH.value = "00";
+            els.sideM.value = "00";
+            els.sideS.value = "00";
+            
+            els.sideStatus.textContent = "Set Time";
+            updateSidePlayIcon();
+            
+            els.sideH.disabled = false;
+            els.sideM.disabled = false;
+            els.sideS.disabled = false;
+        }
+
+        function completeSideTimer() {
+            clearInterval(sideTimerState.interval);
+            sideTimerState.isRunning = false;
+            
+            // Play new repeated chime
+            audio.playSideTimerChime();
+            
+            els.sideStatus.textContent = "Completed";
+            updateSidePlayIcon();
+            
+            els.sideH.disabled = false;
+            els.sideM.disabled = false;
+            els.sideS.disabled = false;
+            
+            // Reset visually to 00
+            els.sideH.value = "00";
+            els.sideM.value = "00";
+            els.sideS.value = "00";
+        }
+        
+        // Side Timer Event Listeners
+        els.sideToggle.addEventListener('click', toggleSideTimer);
+        els.sideReset.addEventListener('click', resetSideTimer);
+        
+        // Auto-format inputs (add leading zero on blur)
+        [els.sideH, els.sideM, els.sideS].forEach(input => {
+            input.addEventListener('blur', (e) => {
+                let val = parseInt(e.target.value) || 0;
+                // Clamp values for minutes/seconds
+                if ((input.id === 'side-m' || input.id === 'side-s') && val > 59) val = 59;
+                if (val < 0) val = 0;
+                e.target.value = val.toString().padStart(2, '0');
+                
+                if (!sideTimerState.isRunning) {
+                     sideTimerState.remainingSeconds = 0; // Invalidate paused progress if changed
+                }
+            });
+            
+            // Allow Enter key to start
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    input.blur(); // Force formatting
+                    toggleSideTimer();
+                }
+            });
+        });
+
+
+        // --- Event Listeners (Original) ---
         els.startOverlayBtn.addEventListener('click', () => {
             audio.init()
                 .then(() => {
