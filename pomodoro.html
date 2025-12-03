@@ -106,11 +106,11 @@
     <!-- Audio Permission Overlay -->
     <div id="start-overlay" class="fixed inset-0 z-50 bg-black/80 flex items-center justify-center transition-opacity duration-500">
         <div class="text-center p-8 max-w-md bg-slate-800 rounded-xl shadow-2xl">
-            <i data-lucide="headphones" class="w-16 h-16 mx-auto mb-6 text-emerald-400 animate-float"></i>
+            <i data-lucide="bell-ring" class="w-16 h-16 mx-auto mb-6 text-emerald-400 animate-float"></i>
             <h1 class="text-3xl font-bold mb-4">ZenFocus Studio</h1>
-            <p class="text-slate-400 mb-8">A procedural audio environment for deep learning. Please click to enable sound and start the session.</p>
+            <p class="text-slate-400 mb-8">Enable sounds and notifications for the best deep work experience.</p>
             <button id="start-btn" class="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3 rounded-full font-semibold transition-all transform hover:scale-105 shadow-lg shadow-emerald-500/20">
-                Enter Focus Mode
+                Enable & Enter
             </button>
         </div>
     </div>
@@ -141,6 +141,11 @@
                         <i data-lucide="flame" class="w-5 h-5 text-orange-400"></i>
                         <span id="streak-display" class="font-medium text-lg">0</span>
                         <span class="text-xs opacity-60 uppercase tracking-wider ml-1">Sessions</span>
+                    </div>
+                    <!-- Notification Status Indicator -->
+                    <div id="notify-status" class="hidden flex items-center gap-2 glass-panel rounded-full px-4 py-2 opacity-60">
+                        <i data-lucide="bell" class="w-4 h-4"></i>
+                        <span class="text-xs uppercase tracking-wider">Notify On</span>
                     </div>
                 </div>
 
@@ -318,6 +323,42 @@
     </div>
 
     <script>
+        // --- Web Worker Logic (Multitasking) ---
+        // Storing multiple timer intervals by ID so both timers can run at once
+        const workerScript = `
+            const timers = {};
+
+            self.onmessage = function(e) {
+                const { command, id, endTime } = e.data;
+
+                if (command === 'start') {
+                    // Clear existing if restarting
+                    if (timers[id]) clearInterval(timers[id]);
+
+                    timers[id] = setInterval(() => {
+                        const now = Date.now();
+                        const remaining = Math.ceil((endTime - now) / 1000);
+
+                        if (remaining <= 0) {
+                            clearInterval(timers[id]);
+                            delete timers[id];
+                            postMessage({ status: 'complete', id: id });
+                        } else {
+                            postMessage({ status: 'tick', id: id, timeLeft: remaining });
+                        }
+                    }, 1000);
+                } 
+                else if (command === 'stop') {
+                    if (timers[id]) {
+                        clearInterval(timers[id]);
+                        delete timers[id];
+                    }
+                }
+            };
+        `;
+        const blob = new Blob([workerScript], { type: 'application/javascript' });
+        const worker = new Worker(URL.createObjectURL(blob));
+
         // --- Audio Engine (Procedural) ---
         class AudioEngine {
             constructor() {
@@ -664,7 +705,6 @@
             interval: null
         };
 
-        let timerInterval = null;
         const FULL_DASH_ARRAY = 754; 
         let isCustomInputActive = false;
         let lastStatusText = "Ready to Focus";
@@ -696,6 +736,7 @@
                 long: document.getElementById('setting-long')
             },
             themeBtns: document.querySelectorAll('.theme-btn'),
+            notifyStatus: document.getElementById('notify-status'),
             // Side Timer Elements
             sideH: document.getElementById('side-h'),
             sideM: document.getElementById('side-m'),
@@ -703,11 +744,10 @@
             sideToggle: document.getElementById('side-toggle'),
             sideReset: document.getElementById('side-reset'),
             sideStatus: document.getElementById('side-status'),
-            sideIconContainer: document.getElementById('side-icon-container') // New container ref
+            sideIconContainer: document.getElementById('side-icon-container') 
         };
         
         // Custom SVG Icons
-        // Accepts: 'play', 'pause', 'play-small', 'pause-small'
         const getPlayPauseSvg = (type) => {
             const isSmall = type.includes('small');
             const mode = type.includes('pause') ? 'pause' : 'play';
@@ -752,10 +792,41 @@
             updateNoiseControls(state.currentNoiseType, true); // Use silent init
             updatePlayIcon();
             updateSidePlayIcon(); // Init side icon
+            checkNotificationStatus();
             
-            // Render all smaller Lucide icons once everything else is ready
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
+            }
+        }
+
+        // --- Notifications ---
+        function checkNotificationStatus() {
+            if ("Notification" in window && Notification.permission === "granted") {
+                els.notifyStatus.classList.remove('hidden');
+            }
+        }
+
+        function requestNotifyPermission() {
+            if ("Notification" in window && Notification.permission !== "granted") {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") {
+                        els.notifyStatus.classList.remove('hidden');
+                        new Notification("ZenFocus Configured", { 
+                            body: "Notifications enabled for Main and Custom timers.",
+                            icon: "https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/bell.svg"
+                        });
+                    }
+                });
+            }
+        }
+
+        function sendNotification(title, body) {
+            if ("Notification" in window && Notification.permission === "granted") {
+                try {
+                    new Notification(title, { body });
+                } catch (e) {
+                    console.error("Notification failed", e);
+                }
             }
         }
 
@@ -768,9 +839,7 @@
             if (savedStreak) state.streak = parseInt(savedStreak);
             if (savedNoise) state.currentNoiseType = savedNoise;
 
-            // Ensure current time respects loaded settings
             state.timeLeft = state.settings[state.mode] * 60;
-
             els.streakDisplay.textContent = state.streak;
             audio.currentNoiseType = state.currentNoiseType;
         }
@@ -783,16 +852,13 @@
 
         function applyTheme(themeName) {
             const t = themes[themeName];
-            // Update classes
             els.appBody.className = `min-h-screen flex flex-col items-center justify-start pt-10 p-4 transition-colors duration-700 ${t.bg} ${t.text}`;
-            els.progressRing.style.stroke = t.accent.replace('text-', 'currentColor'); // Set SVG stroke color dynamically
+            els.progressRing.style.stroke = t.accent.replace('text-', 'currentColor'); 
             els.progressRing.setAttribute('class', `text-current transition-all duration-1000 stroke-dasharray="754" stroke-dashoffset="0" stroke-linecap="round"`);
             
             updateModeButtons();
             
-            // Re-apply focus ring to current theme button
             els.themeBtns.forEach(b => {
-                // Remove all previous ring classes
                 b.classList.forEach(cls => {
                     if (cls.startsWith('ring-')) {
                          b.classList.remove(cls);
@@ -805,15 +871,12 @@
             });
         }
 
-        /**
-         * Switches the timer mode and resets the timer display.
-         * Used for manual mode switching (buttons)
-         */
         function switchMode(mode) {
             state.mode = mode;
             state.timeLeft = state.settings[mode] * 60;
             state.isRunning = false;
-            clearInterval(timerInterval);
+            
+            worker.postMessage({ command: 'stop', id: 'main' });
             
             updateTimerDisplay();
             updateModeButtons();
@@ -831,10 +894,6 @@
             setCircleDashoffset(0);
         }
         
-        /**
-         * Switches the timer mode without resetting running state or interval.
-         * Used internally by completeTimer/skip functionality.
-         */
         function switchModeInternal(mode) {
             state.mode = mode;
             state.timeLeft = state.settings[mode] * 60;
@@ -861,21 +920,9 @@
             updatePlayIcon();
             audio.init(); 
 
-            const totalTime = state.settings[state.mode] * 60;
-
-            timerInterval = setInterval(() => {
-                state.timeLeft--;
-                updateTimerDisplay();
-                
-                const rawFraction = state.timeLeft / totalTime;
-                const offset = FULL_DASH_ARRAY - (rawFraction * FULL_DASH_ARRAY);
-                setCircleDashoffset(offset);
-
-                if (state.timeLeft <= 0) {
-                    // Timer ran out naturally
-                    completeTimer(false); 
-                }
-            }, 1000);
+            // Calc end time for Worker
+            const endTime = Date.now() + (state.timeLeft * 1000);
+            worker.postMessage({ command: 'start', id: 'main', endTime: endTime });
 
             els.statusText.textContent = state.mode === 'focus' ? "FOCUSING" : "BREAKING";
             lastStatusText = els.statusText.textContent;
@@ -883,68 +930,92 @@
 
         function pauseTimer() {
             state.isRunning = false;
-            clearInterval(timerInterval);
+            worker.postMessage({ command: 'stop', id: 'main' });
+            
             updatePlayIcon();
             els.statusText.textContent = "PAUSED";
             lastStatusText = "PAUSED";
         }
 
-        /**
-         * Handles timer completion (either naturally or via skip button).
-         * Auto-starts the next timer.
-         * @param {boolean} wasSkipped - true if triggered by skip button.
-         */
         function completeTimer(wasSkipped) {
             pauseTimer();
             
             if (!wasSkipped) {
                 audio.playChime();
+                if (state.mode === 'focus') {
+                    sendNotification("Focus Complete!", "Great job! Time to take a break.");
+                } else {
+                    sendNotification("Break Over!", "Ready to get back to deep work?");
+                }
             }
 
             if (state.mode === 'focus') {
-                if (!wasSkipped) { // Only count streak on natural completion
+                if (!wasSkipped) { 
                     state.streak++;
                     els.streakDisplay.textContent = state.streak;
                     saveSettings();
                 }
-                
-                // Determine next mode
                 const nextMode = (state.streak % 4 === 0 && state.streak !== 0) ? 'long' : 'short';
-                
-                // Switch mode internally to prepare the next time
                 switchModeInternal(nextMode); 
-                
                 els.statusText.textContent = wasSkipped ? "Focus Skipped, Starting Break" : "Focus Complete";
-                
-            } else { // Break mode
-                // Switch to Focus mode
+            } else { 
                 switchModeInternal('focus');
                 els.statusText.textContent = wasSkipped ? "Break Skipped, Starting Focus" : "Break Over";
             }
             
             lastStatusText = els.statusText.textContent;
-            
-            // Auto-start the newly set timer
             startTimer();
+        }
+
+        // --- Worker Message Handler (Central) ---
+        worker.onmessage = function(e) {
+            const { status, id, timeLeft } = e.data;
+
+            if (id === 'main') {
+                if (status === 'tick') {
+                    state.timeLeft = timeLeft;
+                    updateTimerDisplay();
+                    updateMainProgress();
+                } else if (status === 'complete') {
+                    state.timeLeft = 0;
+                    updateTimerDisplay();
+                    updateMainProgress();
+                    completeTimer(false);
+                }
+            } 
+            else if (id === 'side') {
+                if (status === 'tick') {
+                    sideTimerState.remainingSeconds = timeLeft;
+                    updateSideDisplayFromState();
+                } else if (status === 'complete') {
+                    sideTimerState.remainingSeconds = 0;
+                    updateSideDisplayFromState();
+                    completeSideTimer();
+                }
+            }
+        };
+
+        function updateMainProgress() {
+            const totalTime = state.settings[state.mode] * 60;
+            const safeTimeLeft = Math.max(0, state.timeLeft);
+            const rawFraction = safeTimeLeft / totalTime;
+            const offset = FULL_DASH_ARRAY - (rawFraction * FULL_DASH_ARRAY);
+            setCircleDashoffset(offset);
         }
 
         function updateTimerDisplay() {
             const m = Math.floor(state.timeLeft / 60);
             const s = state.timeLeft % 60;
             const timeStr = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-            
-            // Only update the time display div if it hasn't been replaced by the input
             if (!isCustomInputActive) {
                 els.timeDisplay.textContent = timeStr;
             }
             document.title = `${timeStr} - ZenFocus`;
         }
         
-        // Custom function to update the embedded SVG icon (Main)
         function updatePlayIcon() {
             const iconContainer = document.getElementById('play-icon-container');
             if (!iconContainer) return; 
-
             if (state.isRunning) {
                 iconContainer.innerHTML = getPlayPauseSvg('pause');
             } else {
@@ -952,10 +1023,8 @@
             }
         }
         
-        // Custom function to update the embedded SVG icon (Side)
         function updateSidePlayIcon() {
             if (!els.sideIconContainer) return;
-            
             if (sideTimerState.isRunning) {
                 els.sideIconContainer.innerHTML = getPlayPauseSvg('pause-small');
             } else {
@@ -965,17 +1034,13 @@
 
         function updateModeButtons() {
             const ringColorClass = themes[state.settings.theme].ring;
-            
             els.modeBtns.forEach(btn => {
                 const mode = btn.dataset.mode;
-                
-                // Remove all previous ring classes (including old themes)
                 btn.classList.forEach(cls => {
                     if (cls.startsWith('ring-') || cls.startsWith('ring-offset-')) {
                          btn.classList.remove(cls);
                     }
                 });
-                
                 if (mode === state.mode) {
                     btn.classList.remove('opacity-60', 'hover:opacity-100', 'hover:bg-white/10');
                     btn.classList.add('bg-white/20', 'ring-2', ringColorClass, 'ring-offset-2', 'ring-offset-slate-900');
@@ -987,17 +1052,13 @@
         }
         
         function updateNoiseControls(selectedType, isInit = false) {
-            // Only call startNoise on user interaction
             if (!isInit) {
                 audio.startNoise(selectedType);
             }
-
-            // Update UI
             const description = noiseDescriptions[audio.currentNoiseType];
             els.noiseTitle.textContent = description.title;
             els.noiseDescription.textContent = description.desc;
 
-            // Update button states based on the *actual* current noise type
             els.noiseTypeBtns.forEach(btn => {
                 if (btn.dataset.noise === audio.currentNoiseType) {
                     btn.classList.remove('opacity-60', 'hover:opacity-100', 'hover:bg-white/10');
@@ -1007,7 +1068,6 @@
                     btn.classList.remove('bg-emerald-500', 'text-white');
                 }
             });
-            
             state.currentNoiseType = audio.currentNoiseType;
             saveSettings();
         }
@@ -1023,14 +1083,9 @@
                 pauseTimer();
             }
             isCustomInputActive = true;
-            
             lastStatusText = els.statusText.textContent;
-
-            // Get current minutes, round to nearest integer for input value
             const currentMinutes = Math.round(state.timeLeft / 60);
 
-            // 1. Create and insert the input field
-            // Note: We keep the status-text ID in the wrapper to be re-bound later
             const inputHtml = `
                 <input type="number" id="custom-time-input" 
                        class="time-input-style" 
@@ -1040,36 +1095,26 @@
             `;
             els.timeInputWrapper.innerHTML = inputHtml;
             const input = document.getElementById('custom-time-input');
-            
-            // 2. Re-bind the status text element
             els.statusText = document.getElementById('status-text');
 
-            // 3. Focus and select
             input.focus();
             input.select();
 
             const saveCustomTime = () => {
                 if (!isCustomInputActive) return;
-
                 let newMinutes = parseInt(input.value);
-                
                 if (isNaN(newMinutes) || newMinutes <= 0) {
-                    newMinutes = state.settings[state.mode]; // Revert to current setting
+                    newMinutes = state.settings[state.mode]; 
                 }
-
-                // Update state and settings
                 state.settings[state.mode] = newMinutes;
                 state.timeLeft = newMinutes * 60;
                 saveSettings();
                 lastStatusText = "Time Updated";
                 
-                // 4. Restore the time display structure
                 els.timeInputWrapper.innerHTML = `
                     <div id="time-display" class="text-6xl font-bold tracking-tighter mb-1"></div>
                     <div id="status-text" class="text-sm uppercase tracking-widest opacity-70">${lastStatusText}</div>
                 `;
-                
-                // 5. Re-bind the elements and listeners
                 els.timeDisplay = document.getElementById('time-display');
                 els.statusText = document.getElementById('status-text');
 
@@ -1079,7 +1124,6 @@
                 setCircleDashoffset(0);
             };
 
-            // Event Listeners for input field
             input.addEventListener('blur', saveCustomTime);
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
@@ -1087,15 +1131,16 @@
                     saveCustomTime();
                 }
             });
-
-            // Remove the listener from the wrapper while the input is active
             els.timeInputWrapper.removeEventListener('click', enableCustomTimeInput);
         }
 
         // --- SIDE TIMER LOGIC ---
 
-        function updateSideDisplay(h, m, s) {
-            // Update the input values directly to show countdown
+        function updateSideDisplayFromState() {
+            const h = Math.floor(sideTimerState.remainingSeconds / 3600);
+            const m = Math.floor((sideTimerState.remainingSeconds % 3600) / 60);
+            const s = sideTimerState.remainingSeconds % 60;
+            
             els.sideH.value = h.toString().padStart(2, '0');
             els.sideM.value = m.toString().padStart(2, '0');
             els.sideS.value = s.toString().padStart(2, '0');
@@ -1111,7 +1156,7 @@
         function toggleSideTimer() {
             if (sideTimerState.isRunning) {
                 // Pause
-                clearInterval(sideTimerState.interval);
+                worker.postMessage({ command: 'stop', id: 'side' });
                 sideTimerState.isRunning = false;
                 els.sideStatus.textContent = "Paused";
                 
@@ -1125,13 +1170,12 @@
                 // Start
                 if (sideTimerState.remainingSeconds <= 0) {
                     const { h, m, s } = getSideInputValues();
-                    if (h === 0 && m === 0 && s === 0) return; // Don't start if 0
+                    if (h === 0 && m === 0 && s === 0) return; 
                     
                     sideTimerState.totalSeconds = (h * 3600) + (m * 60) + s;
                     sideTimerState.remainingSeconds = sideTimerState.totalSeconds;
                 }
                 
-                // Initialize audio context if not already
                 audio.init();
 
                 sideTimerState.isRunning = true;
@@ -1139,40 +1183,25 @@
                 
                 updateSidePlayIcon();
                 
-                // Disable inputs while running
                 els.sideH.disabled = true;
                 els.sideM.disabled = true;
                 els.sideS.disabled = true;
                 
-                // Show seconds immediately
-                const h = Math.floor(sideTimerState.remainingSeconds / 3600);
-                const m = Math.floor((sideTimerState.remainingSeconds % 3600) / 60);
-                const s = sideTimerState.remainingSeconds % 60;
-                updateSideDisplay(h, m, s);
+                // Update display immediately
+                updateSideDisplayFromState();
 
-                sideTimerState.interval = setInterval(() => {
-                    sideTimerState.remainingSeconds--;
-                    
-                    const h = Math.floor(sideTimerState.remainingSeconds / 3600);
-                    const m = Math.floor((sideTimerState.remainingSeconds % 3600) / 60);
-                    const s = sideTimerState.remainingSeconds % 60;
-                    
-                    updateSideDisplay(h, m, s);
-
-                    if (sideTimerState.remainingSeconds <= 0) {
-                        completeSideTimer();
-                    }
-                }, 1000);
+                // Send to Worker
+                const endTime = Date.now() + (sideTimerState.remainingSeconds * 1000);
+                worker.postMessage({ command: 'start', id: 'side', endTime: endTime });
             }
         }
 
         function resetSideTimer() {
-            clearInterval(sideTimerState.interval);
+            worker.postMessage({ command: 'stop', id: 'side' });
             sideTimerState.isRunning = false;
             sideTimerState.remainingSeconds = 0;
             sideTimerState.totalSeconds = 0;
             
-            // Reset UI
             els.sideH.value = "00";
             els.sideM.value = "00";
             els.sideS.value = "00";
@@ -1186,11 +1215,11 @@
         }
 
         function completeSideTimer() {
-            clearInterval(sideTimerState.interval);
+            worker.postMessage({ command: 'stop', id: 'side' });
             sideTimerState.isRunning = false;
             
-            // Play new repeated chime
             audio.playSideTimerChime();
+            sendNotification("Custom Timer Done", "Your custom timer has finished.");
             
             els.sideStatus.textContent = "Completed";
             updateSidePlayIcon();
@@ -1199,7 +1228,6 @@
             els.sideM.disabled = false;
             els.sideS.disabled = false;
             
-            // Reset visually to 00
             els.sideH.value = "00";
             els.sideM.value = "00";
             els.sideS.value = "00";
@@ -1209,24 +1237,20 @@
         els.sideToggle.addEventListener('click', toggleSideTimer);
         els.sideReset.addEventListener('click', resetSideTimer);
         
-        // Auto-format inputs (add leading zero on blur)
         [els.sideH, els.sideM, els.sideS].forEach(input => {
             input.addEventListener('blur', (e) => {
                 let val = parseInt(e.target.value) || 0;
-                // Clamp values for minutes/seconds
                 if ((input.id === 'side-m' || input.id === 'side-s') && val > 59) val = 59;
                 if (val < 0) val = 0;
                 e.target.value = val.toString().padStart(2, '0');
                 
                 if (!sideTimerState.isRunning) {
-                     sideTimerState.remainingSeconds = 0; // Invalidate paused progress if changed
+                     sideTimerState.remainingSeconds = 0; 
                 }
             });
-            
-            // Allow Enter key to start
             input.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') {
-                    input.blur(); // Force formatting
+                    input.blur(); 
                     toggleSideTimer();
                 }
             });
@@ -1235,31 +1259,27 @@
 
         // --- Event Listeners (Original) ---
         els.startOverlayBtn.addEventListener('click', () => {
+            requestNotifyPermission();
+
             audio.init()
                 .then(() => {
                     els.overlay.classList.add('opacity-0', 'pointer-events-none');
                     setTimeout(() => els.overlay.remove(), 500);
                 })
                 .catch((error) => {
-                    console.error("Audio initialization failed. Proceeding without sound:", error);
                     els.overlay.classList.add('opacity-0', 'pointer-events-none');
                     setTimeout(() => els.overlay.remove(), 500);
                 });
         });
 
         els.toggleBtn.addEventListener('click', toggleTimer);
-        
-        // Skip Button: calls completeTimer with wasSkipped=true
         els.skipBtn.addEventListener('click', () => completeTimer(true)); 
-
-        // Initial setup for time customization
         els.timeInputWrapper.addEventListener('click', enableCustomTimeInput);
 
         els.modeBtns.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const target = e.target.closest('.mode-btn');
                 if (target) {
-                    // Manual mode switch should reset and stop the timer
                     switchMode(target.dataset.mode);
                 }
             });
@@ -1278,7 +1298,6 @@
             audio.setNoiseVolume(parseFloat(e.target.value));
         });
 
-        // Settings Modal Handlers
         els.settingsBtn.addEventListener('click', () => {
             els.settingsInputs.focus.value = state.settings.focus;
             els.settingsInputs.short.value = state.settings.short;
@@ -1311,7 +1330,6 @@
             
             saveSettings();
             applyTheme(state.settings.theme);
-            // Re-apply current mode settings if timer is not running
             if (!state.isRunning) switchMode(state.mode); 
             closeSettingsModal();
         });
@@ -1321,13 +1339,11 @@
                 const targetBtn = e.currentTarget; 
                 const themeName = targetBtn.dataset.theme;
                 const ringClass = themes[themeName].ring;
-
                 els.themeBtns.forEach(b => b.classList.remove('ring-2', themes.midnight.ring, themes.latte.ring, themes.forest.ring));
                 targetBtn.classList.add('ring-2', ringClass);
             });
         });
 
-        // Init: Wait for the DOM and scripts to fully load before running the app logic
         window.onload = function() {
             init(); 
         };
